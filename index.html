@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="description" content="Libro-juego: El Castillo de Obsidiana. Texto + d20. Fantasía oscura y misterio." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <title>El Castillo de Obsidiana</title>
+  <style>
+    :root{ --bg:#0b0f14; --panel:#111826; --ink:#e5e7eb; --muted:#9aa4b2; --accent:#7dd3fc; --danger:#fca5a5; --ok:#86efac; }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 700px at 50% 30%, #0f172a 0%, #070a10 35%, #0b0f14 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    header h1{font-size:20px;margin:0}
+    header .badge{font-size:12px;color:#0b0f14;background:var(--accent);padding:4px 8px;border-radius:999px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,#0f172a,#0b1220);border:1px solid #1f2a44;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .card h2{font-size:16px;margin:0 0 8px 0;color:#c7d2fe}
+    .card .body{padding:14px}
+    .scene{white-space:pre-wrap;line-height:1.6}
+    .choices{display:grid;gap:8px;margin-top:12px}
+    .choices button{background:#0b1220;color:var(--ink);border:1px solid #22305a;border-radius:10px;padding:10px;text-align:left;cursor:pointer}
+    .choices button:hover{border-color:var(--accent)}
+    .choices button small{display:block;color:var(--muted)}
+    .log{height:180px;overflow:auto;border-top:1px dashed #22305a;margin-top:10px;padding-top:10px;font-size:13px;white-space:pre-wrap}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .stat{background:#0b1220;border:1px solid #22305a;border-radius:10px;padding:8px}
+    .stat b{font-size:14px}
+    .inv{display:flex;flex-wrap:wrap;gap:6px}
+    .tag{border:1px solid #22305a;border-radius:8px;padding:6px 8px;font-size:12px}
+    footer{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+    footer button{background:#0b1220;color:var(--ink);border:1px solid #22305a;border-radius:10px;padding:8px 10px;cursor:pointer}
+    footer button:hover{border-color:var(--accent)}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .hintbar{font-size:12px;color:var(--muted)}
+    .install{display:none}
+    .install.show{display:inline-block}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>El Castillo de Obsidiana</h1>
+        <div class="hintbar">Libro-juego · texto + d20 · fantasía oscura y misterio</div>
+      </div>
+      <div class="top-actions">
+        <span class="badge">Instálalo como app (Android/iPhone)</span>
+	<button id="installBtn" class="install">Instalar app</button>
+	<button id="helpInstall" class="install show">¿Cómo instalar?</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="body">
+          <h2 id="sceneTitle">—</h2>
+          <div id="sceneText" class="scene"></div>
+          <div id="choices" class="choices"></div>
+          <div class="log" id="log"></div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="body">
+          <h2>Estado</h2>
+          <div class="stats">
+            <div class="stat"><b>PV</b><div id="pv"></div></div>
+            <div class="stat"><b>DEF</b><div id="def"></div></div>
+            <div class="stat"><b>Lucidez</b><div id="luc"></div></div>
+            <div class="stat"><b>Temple</b><div id="tem"></div></div>
+            <div class="stat"><b>RN</b><div id="rn"></div></div>
+            <div class="stat"><b>Marcas</b><div id="marks"></div></div>
+          </div>
+          <h2 style="margin-top:12px">Inventario</h2>
+          <div id="inv" class="inv"></div>
+          <footer>
+            <button id="save">Guardar</button>
+            <button id="load">Cargar</button>
+            <button id="reset">Reiniciar</button>
+          </footer>
+          <div class="hintbar" style="margin-top:10px">Nota: si no ves cambios tras actualizar, recarga con Ctrl+F5 o borra la caché del sitio (PWA). También puedes subir una nueva versión del service-worker.</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+// ------------------ Configuración ------------------
+const SAVE_KEY = "obsidiana_save";
+const GAME_VERSION = "0.3.0";
+
+// ------------------ Utilidades ------------------
+const $ = (id) => document.getElementById(id);
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+const roll20 = () => Math.floor(Math.random()*20)+1;
+
+// ------------------ Estado (inicio coherente) ------------------
+const state = {
+  pv:20, def:12, luc:7, tem:2, rn:3,
+  marks:{tinta:0,sal:0,sombra:0,ceniza:0},
+  inv:["Contrato de Obsidiana (doblado)","Linterna pequeña","Libreta"],
+  letters:0,
+  scene:"portada",
+  log:[]
+};
+
+function addLog(msg){
+  state.log.unshift(msg);
+  renderLog();
+}
+
+function applyRoll(def){
+  const r = roll20();
+  const stat = def.stat === "atk" ? 3 : state[def.stat];
+  const ok = (r + stat) >= def.dc;
+  addLog(`Tirada d20(${r}) + ${def.stat}(${stat}) ${ok ? "✓" : "✗"}`);
+  addLog(ok ? def.ok : def.bad);
+  return { ok, r, total: r + stat };
+}
+
+// ------------------ Escenas (más conectadas y menos "robot") ------------------
+const scenes = {
+  portada:{
+    title:"Portada",
+    text:`El castillo no miente: edita.\n\nEres Alberto de la Vega.\n\nAyer eras una persona con nombre, dirección y hábitos. Hoy tienes un sobre sin remitente y un documento con tu firma —una firma idéntica a la tuya— que jura que le debes algo a un lugar que no debería poder reclamar nada.\n\nSi no te presentas antes del amanecer, el mundo dejará de reconocerte. No como una maldición épica: como un trámite que se ejecuta sin ruido.\n\nVersión: ${GAME_VERSION}`,
+    choices:[
+      {label:"Comenzar (Nueva partida)", hint:"Arranque → Prólogo", action:"newGame", next:"prologo"},
+      {label:"Continuar", hint:"Cargar partida guardada", action:"continue", next:"_continue"},
+      {label:"Créditos", hint:"(muy breve)", next:"creditos"}
+    ]
+  },
+
+  creditos:{
+    title:"Créditos",
+    text:`El Castillo de Obsidiana\n\nDiseño y narrativa: Ambroj + Copilot\nMotor: HTML + JavaScript\n\nGracias por jugar.\n\nConsejo: cuando algo no encaja, no siempre es un error. A veces es el castillo editando la escena.` ,
+    choices:[{label:"Volver", hint:"A la portada", next:"portada"}]
+  },
+
+  prologo:{
+    title:"Prólogo — Cláusula de Nombre",
+    text:`La carta estaba donde no dejas cartas: alineada con la mesa como si alguien hubiese medido la madera.\n\nASUNTO: Regularización de propiedad no devuelta.\nOBJETO: Puerta (unidad única).\nCLÁUSULA: Falta de comparecencia → anulación de referencia nominal pública.\n\nAbajo, tu nombre, escrito con tu letra. No “parecido”: exacto. Y, en una línea pequeña, una instrucción que parece una recomendación… y suena a advertencia:\n\n“NO PRONUNCIES TU NOMBRE EN EL CAMINO”.\n\nNo sabes quién ha escrito eso, pero sí sabes qué significa perder el control de una historia: si tu firma está ahí, la historia ya ha empezado.\n\nTe vistes sin ceremonia: abrigo, llaves, la linterna pequeña y la libreta. En la cocina coges agua y una barrita de pan duro —no por hambre, sino por costumbre. Doblas el contrato y lo guardas en el bolsillo interior, pegado al pecho como si fuese un documento que pudiera escuchar.\n\nSales a la calle cuando aún no hay mañana. No vas “a una dirección”; vas a un recorrido que recuerdas del pueblo: la salida norte, el desvío sin señal y el puente estrecho sobre el barranco seco. Es la carretera vieja que los vecinos usan cuando quieren evitar preguntas.\n\nConduces hacia las afueras y, cuando las últimas farolas quedan atrás, el asfalto se vuelve rugoso. La niebla se junta en los bajos como si el aire pesara más allí. Miras el reloj: falta poco. El contrato decía “antes del amanecer”.\n\nEntonces ocurre lo primero que te convence de que no estás exagerando: el cuentakilómetros parece quedarse quieto dos veces en el mismo tramo. No es un fallo del coche. Es como si el camino hubiera sido editado para repetirse sin que tú lo notes.\n\nEn ese kilómetro que no se repite, el castillo aparece. Primero como una sombra geométrica al final del arcén; después como piedra real, plantado donde debería haber monte y pinos. Aparcas, apagas el motor y te quedas un segundo escuchando. El silencio te recibe como si ya te hubiera firmado.` ,
+    choices:[{label:"Acercarte a la Puerta de Hierro", hint:"Comienza el capítulo", next:"puerta_hierro"}]
+  },
+
+  puerta_hierro:{
+    title:"Puerta de Hierro (01)",
+    text:`El arco está tibio, como un animal dormido. La puerta es de hierro… y respira. No lo hace como un ser vivo: lo hace como una casa cuando el viento encuentra una rendija.\n\nPones la mano cerca del tirador y notas un detalle que no esperabas: dentro del hierro hay madera. Madera vieja. Como si alguien hubiera construido una puerta normal y luego la hubiera recubierto, por pudor o por seguridad.\n\nEn el borde inferior cuelga una etiqueta vieja, atada con cuerda fina, como de almacén:\n“PUERTA — devolver intacta”.\n\nNo es una broma. Es una norma.\n\nAl otro lado hay un sonido leve: un paso, un roce, algo que se recoloca. El castillo no te da la bienvenida. Te deja entrar… si aciertas a entrar bien.` ,
+    choices:[
+      {label:"Mirar por la rendija", hint:"Lucidez d20", roll:{stat:"luc",dc:13, ok:"Ves un vestíbulo y una mesa con un libro abierto. Identificas dos salidas claras. Temple +1.", bad:"El reflejo te llega tarde, como si la puerta dudara de ti. Lucidez −1."}, action:"doorPeek", next:"vestibulo"},
+      {label:"Empujar sin mirar", hint:"Pragmático", next:"vestibulo"}
+    ]
+  },
+
+  vestibulo:{
+    title:"Vestíbulo (09)",
+    text:`El vestíbulo te recibe con la educación fría de un lugar que no desea huéspedes pero sí testigos. Hay tapices, polvo y una mesa central con un libro abierto.\n\nTe acercas por instinto. El libro no parece decorativo: parece herramienta. Como si alguien anotara quién entra… y quién deja de ser.\n\nDonde esperarías ver tu nombre, hay una frase limpia y administrativa:\n\nSUJETO EN TRÁNSITO — UBICACIÓN VARIABLE.\n\nNo dice “Alberto de la Vega”. Dice “sujeto”.\n\nUn vecino del pueblo —o alguien que tiene la misma cara y los mismos hábitos que un vecino— cruza el vestíbulo con una caja. Te mira y, durante un segundo, su expresión te reconoce. Después se rompe, como una palabra que no termina.\n\n—Hoy no me constas —dice, avergonzado, sin saber por qué esa palabra es la que le sale.\n\nBaja la voz, mirando alrededor, y te da una indicación concreta (por fin, algo utilizable):\n—Si la buscas… prueba la Capilla. Allí las cosas se quedan más quietas.` ,
+    choices:[
+      {label:"Ir a la Capilla (12)", hint:"Buscar rastro de Lucía", next:"capilla"},
+      {label:"Bajar a Cocina/Despensa (17/16)", hint:"Buscar recursos y pistas", next:"cocina"}
+    ]
+  },
+
+  cocina:{
+    title:"Cocina (17)",
+    text:`La cocina está demasiado ordenada para un lugar abandonado: cuchillos colgados a la misma distancia, ollas limpias, una tabla de cortar con marcas antiguas. La sensación es clara: alguien mantiene esto… o algo intenta que parezca que se mantiene.\n\nEn el zócalo, donde la pared se junta con la sombra, ves movimiento. Primero piensas en ratones. Luego ves manos pequeñas, verdes por humedad, y entiendes que no es fauna: es personal de inventario.\n\nTres duendes de verdín salen de una grieta. No te miran como a una persona. Te miran como a un objeto sin etiqueta.\n\nUno se acerca con una seriedad casi profesional y te pega una etiqueta en la ropa: “PENDIENTE”.\n\nNo es un ataque. Es una clasificación. Y aquí, lo clasificado empieza a tener consecuencias.` ,
+    choices:[
+      {label:"Negociar con una verdad mínima", hint:"Temple d20", roll:{stat:"tem",dc:13, ok:"Aceptan la verdad, te reclasifican y te dejan una Etiqueta blanca útil.", bad:"No te entienden; te añaden otra etiqueta y te desestabilizan (−1 a la próxima tirada)."}, action:"gainEtiqueta", next:"despensa"},
+      {label:"Arrancar la etiqueta", hint:"ATQ d20", roll:{stat:"atk",dc:13, ok:"La arrancas. Los duendes retroceden y dejas caer un hilo raro: Hilo de Verdín.", bad:"Se rompe a medias y te deja una marca incompleta. Lucidez −1."}, action:"gainHilo", next:"despensa"}
+    ]
+  },
+
+  despensa:{
+    title:"Despensa (16)",
+    text:`La despensa huele a piedra húmeda y a sacos vacíos. Aquí la comida no importa; lo que importa es lo que se conserva por otros motivos.\n\nVes un recipiente de barro lleno de sal gruesa. No está ahí para cocinar: está ahí para contener. La sal dibuja un borde, como si alguien la hubiera usado para fijar el mundo.\n\nDos ratas de cera, amarillentas y rígidas, prueban el borde del recipiente con el hocico. No parecen animales normales: la cera se les queda pegada como si estuvieran hechas de lo mismo que el miedo doméstico.\n\nSi quieres llevarte sal, tendrás que hacerlo con cuidado, o convertirlo en un gesto de ritual.` ,
+    choices:[
+      {label:"Tomar sal y sellar el borde", hint:"Temple d20", roll:{stat:"tem",dc:13, ok:"Lo haces bien: obtienes Sal y ganas Marca: Sal +1.", bad:"Te tiembla el pulso: pierdes Lucidez −1, pero aprendes (Sal +1 igualmente)."}, action:"gainSal", next:"capilla"},
+      {label:"Evitar el lugar", hint:"Pragmático", next:"capilla"}
+    ]
+  },
+
+  capilla:{
+    title:"Capilla (12)",
+    text:`La capilla es pequeña y fría. No tiene la solemnidad de lo sagrado: tiene la quietud de lo sellado. Hay marcas de sal en las junturas, velas consumidas y un libro de registro municipal en un atril.\n\nAbres el registro buscando una evidencia simple: el nombre de Lucía, una fecha, una firma. Lo que encuentras es peor: el nombre aparece a medias, tachado y reescrito como si alguien hubiera intentado corregirlo sin conseguir que conste de verdad.\n\nEn el margen hay una nota que no parece de sacerdote; parece de oficina:\n“Se ruega no insistir.”\n\nEn el altar hay una pieza de obsidiana lisa. Cuando te asomas, tu reflejo llega con un retraso mínimo. No es que no te vea: es que duda de cómo anotarte.\n\nAquí puedes buscar letras sueltas, fragmentos, cualquier cosa que te permita sostenerte.` ,
+    choices:[
+      {label:"Buscar letras entre páginas", hint:"Lucidez d20", roll:{stat:"luc",dc:13, ok:"Encuentras una letra útil. Letras +1.", bad:"El texto se te mezcla en la cabeza. Lucidez −1."}, action:"gainLetter", next:"torre"},
+      {label:"Salir hacia la Torre del Hilo (13)", hint:"Ver el castillo como tablero", next:"torre"}
+    ]
+  },
+
+  torre:{
+    title:"Torre del Hilo (13)",
+    text:`La escalera de caracol sube estrecha. Cada peldaño suena distinto, como si el castillo probara tu peso.\n\nArriba, el aire cambia: aquí no es un pasillo, es una vista. Ves líneas de muros, patios y conexiones como si el edificio fuera un texto. Comprendes algo importante: el castillo no es un laberinto por accidente. Es un documento en revisión.\n\nEn el suelo hay un pequeño espejo de obsidiana, oscuro, sin marco. Te devuelve la marca de cuerda en la muñeca —la pista física de una noche que te persigue.\n\nSi reúnes letras suficientes, puedes recomponer tu referencia por un rato. No es un premio: es una muleta para caminar por un mundo que te borra.` ,
+    choices:[
+      {label:"Tomar otra Letra", hint:"Letras +1", action:"gainLetter", next:"puerta_obsidiana"},
+      {label:"Recomponer referencia (usar 3 Letras)", hint:"RN +1 (temporal)", action:"recompose", next:"puerta_obsidiana"},
+      {label:"Bajar hacia la Puerta de Obsidiana (22)", hint:"La tentación", next:"puerta_obsidiana"}
+    ]
+  },
+
+  puerta_obsidiana:{
+    title:"Puerta de Obsidiana (22)",
+    text:`La puerta de obsidiana no brilla: devuelve. No refleja con amabilidad; devuelve como devuelve un archivo un documento incompleto.\n\nAparece texto donde no debería haber texto. No escrito: registrado.\n\nCORRECCIÓN DISPONIBLE.\n1) RN +2 (Lucía constará menos)\n2) Repetir escena (mapa inestable)\n3) Paso administrado (la puerta te sigue)\n\nNo es magia espectacular. Es administración imposible. La oferta es clara: puedes ser más real… a costa de que otra persona sea menos.` ,
+    choices:[
+      {label:"Rechazar", hint:"No pagas el precio todavía", action:"reject", next:"umbral"},
+      {label:"Leer letra pequeña", hint:"Lucidez d20", roll:{stat:"luc",dc:16, ok:"Detectas el truco. Marca: Tinta +1.", bad:"No entiendes una cláusula. Algo queda pendiente."}, action:"gainTinta", next:"umbral"}
+    ]
+  },
+
+  umbral:{
+    title:"Umbral del Eco (23)",
+    text:`El umbral no es una sala: es un punto donde el castillo decide si tu historia vale o si solo ocupa espacio.\n\nSientes un eco antes de hablar. No es acústica; es repetición. Algo toma tu última frase y la prueba en su boca.\n\nTu avance en esta demo termina aquí, pero lo que has visto ya es suficiente para entender el mecanismo: el castillo no te mata. Te reescribe.\n\nREFERENCIA: ACEPTADA (PARCIAL).` ,
+    choices:[
+      {label:"Volver a la portada", hint:"", next:"portada"}
+    ]
+  }
+};
+
+// ------------------ Acciones ------------------
+function newGame(){
+  state.pv=20; state.def=12; state.luc=7; state.tem=2; state.rn=3;
+  state.marks={tinta:0,sal:0,sombra:0,ceniza:0};
+  state.inv=["Contrato de Obsidiana (doblado)","Linterna pequeña","Libreta"]; 
+  state.letters=0;
+  state.log=[];
+  addLog("Nueva partida iniciada.");
+}
+
+function continueGame(){
+  const s = localStorage.getItem(SAVE_KEY);
+  if (!s){ addLog("No hay guardado."); return false; }
+  Object.assign(state, JSON.parse(s));
+  addLog("Partida cargada.");
+  return true;
+}
+
+function handleAction(actionName){
+  switch(actionName){
+    case "newGame": newGame(); return;
+    case "gainLetter": state.letters = clamp(state.letters+1,0,99); addLog(`Recuperas una letra útil. Letras: ${state.letters}.`); return;
+    case "recompose":
+      if (state.letters < 3){ addLog("Aún no tienes 3 letras."); return; }
+      state.letters -= 3;
+      state.rn = clamp(state.rn+1,0,3);
+      state.luc = clamp(state.luc-1,0,10);
+      addLog("Recompones tu referencia: RN +1, Lucidez −1.");
+      return;
+    case "gainTinta": state.marks.tinta = clamp(state.marks.tinta+1,0,3); addLog("Marca: Tinta +1."); return;
+    case "gainSal": state.marks.sal = clamp(state.marks.sal+1,0,3); if (!state.inv.includes("Sal")) state.inv.push("Sal"); addLog("Obtienes sal. Marca: Sal +1."); return;
+    case "gainEtiqueta": if (!state.inv.includes("Etiqueta blanca")) state.inv.push("Etiqueta blanca"); addLog("Obtienes una etiqueta blanca."); return;
+    case "gainHilo": if (!state.inv.includes("Hilo de Verdín")) state.inv.push("Hilo de Verdín"); addLog("Obtienes hilo de verdín."); return;
+    case "doorPeek": state.tem = clamp(state.tem+1,0,5); addLog("Te serenaste: Temple +1."); return;
+    case "reject": addLog("Rechazas la corrección. De momento."); return;
+  }
+}
+
+// ------------------ Render ------------------
+function render(){
+  const s = scenes[state.scene];
+  $("sceneTitle").textContent = s.title;
+  $("sceneText").textContent = s.text;
+
+  const ch = $("choices");
+  ch.innerHTML = "";
+
+  const hasSave = !!localStorage.getItem(SAVE_KEY);
+
+  s.choices.forEach((c) => {
+    if (state.scene === "portada" && c.action === "continue" && !hasSave) return;
+
+    const b = document.createElement("button");
+    b.innerHTML = `${c.label}<small>${c.hint || ""}</small>`;
+    b.onclick = () => {
+      // Portada: comenzar
+      if (state.scene === "portada" && c.action === "newGame") {
+        handleAction("newGame");
+        state.scene = c.next;
+        render();
+        return;
+      }
+      // Portada: continuar
+      if (state.scene === "portada" && c.action === "continue") {
+        const ok = continueGame();
+        if (ok) render();
+        return;
+      }
+
+      if (c.roll) applyRoll(c.roll);
+      if (c.action) handleAction(c.action);
+
+      if (c.next === "_continue") return;
+      state.scene = c.next;
+      render();
+    };
+    ch.appendChild(b);
+  });
+
+  renderStats();
+  renderInv();
+  renderLog();
+}
+
+function renderStats(){
+  $("pv").textContent = `${state.pv}`;
+  $("def").textContent = `${state.def}`;
+  $("luc").textContent = `${state.luc}`;
+  $("tem").textContent = `${state.tem}`;
+  $("rn").textContent = `${state.rn}`;
+  $("marks").textContent = Object.entries(state.marks).map(([k,v])=>`${k}:${v}`).join(" · ") + ` · letras:${state.letters}`;
+}
+
+function renderInv(){
+  const inv = $("inv");
+  inv.innerHTML = "";
+  state.inv.forEach((i) => {
+    const d = document.createElement("div");
+    d.className = "tag";
+    d.textContent = i;
+    inv.appendChild(d);
+  });
+}
+
+function renderLog(){
+  $("log").textContent = state.log.slice(0, 30).map((x) => `• ${x}`).join("\n");
+}
+
+// ------------------ Guardar/Cargar ------------------
+$("save").onclick = () => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); addLog("Guardado."); };
+$("load").onclick = () => { const s = localStorage.getItem(SAVE_KEY); if (!s) return addLog("No hay guardado."); Object.assign(state, JSON.parse(s)); addLog("Cargado."); render(); };
+$("reset").onclick = () => { localStorage.removeItem(SAVE_KEY); location.reload(); };
+
+// ------------------ PWA: instalar + service worker ------------------
+let deferredPrompt = null;
+const installBtn = $("installBtn");
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredPrompt = e; installBtn.classList.add("show"); });
+installBtn.addEventListener("click", async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; installBtn.classList.remove("show"); });
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("service-worker.js");
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        if (!sw) return;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            addLog('Actualización disponible. Recarga la página si no ves los cambios.');
+          }
+        });
+      });
+    } catch {}
+  });
+}
+
+// Arranque
+render();
+</script>
+</body>
+</html>
