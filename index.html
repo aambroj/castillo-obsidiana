@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="description" content="Libro-juego: El Castillo de Obsidiana. Texto + d20. Fantasía oscura y misterio." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" />
+  <title>El Castillo de Obsidiana — Prototipo</title>
+  <style>
+    :root{ --bg:#0b0f14; --panel:#111826; --ink:#e5e7eb; --muted:#9aa4b2; --accent:#7dd3fc; --danger:#fca5a5; --ok:#86efac; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#070a10,#0b0f14);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    header h1{font-size:20px;margin:0}
+    header .badge{font-size:12px;color:#0b0f14;background:var(--accent);padding:4px 8px;border-radius:999px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,#0f172a,#0b1220);border:1px solid #1f2a44;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .card h2{font-size:16px;margin:0 0 8px 0;color:#c7d2fe}
+    .card .body{padding:14px}
+    .scene{white-space:pre-wrap;line-height:1.55}
+    .choices{display:grid;gap:8px;margin-top:12px}
+    .choices button{background:#0b1220;color:var(--ink);border:1px solid #22305a;border-radius:10px;padding:10px;text-align:left;cursor:pointer}
+    .choices button:hover{border-color:var(--accent)}
+    .choices button small{display:block;color:var(--muted)}
+    .log{height:180px;overflow:auto;border-top:1px dashed #22305a;margin-top:10px;padding-top:10px;font-size:13px;white-space:pre-wrap}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .stat{background:#0b1220;border:1px solid #22305a;border-radius:10px;padding:8px}
+    .stat b{font-size:14px}
+    .inv{display:flex;flex-wrap:wrap;gap:6px}
+    .tag{border:1px solid #22305a;border-radius:8px;padding:6px 8px;font-size:12px}
+    footer{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+    footer button{background:#0b1220;color:var(--ink);border:1px solid #22305a;border-radius:10px;padding:8px 10px;cursor:pointer}
+    footer button:hover{border-color:var(--accent)}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .hintbar{font-size:12px;color:var(--muted)}
+    .install{display:none}
+    .install.show{display:inline-block}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>El Castillo de Obsidiana</h1>
+        <div class="hintbar">Libro-juego · texto + d20 · fantasía oscura y misterio</div>
+      </div>
+      <div class="top-actions">
+        <span class="badge">Prototipo PWA · offline</span>
+        <button id="installBtn" class="install">Instalar</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="body">
+          <h2 id="sceneTitle">—</h2>
+          <div id="sceneText" class="scene"></div>
+          <div id="choices" class="choices"></div>
+          <div class="log" id="log"></div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="body">
+          <h2>Estado</h2>
+          <div class="stats">
+            <div class="stat"><b>PV</b><div id="pv"></div></div>
+            <div class="stat"><b>DEF</b><div id="def"></div></div>
+            <div class="stat"><b>Lucidez</b><div id="luc"></div></div>
+            <div class="stat"><b>Temple</b><div id="tem"></div></div>
+            <div class="stat"><b>RN</b><div id="rn"></div></div>
+            <div class="stat"><b>Marcas</b><div id="marks"></div></div>
+          </div>
+          <h2 style="margin-top:12px">Inventario</h2>
+          <div id="inv" class="inv"></div>
+          <footer>
+            <button id="save">Guardar</button>
+            <button id="load">Cargar</button>
+            <button id="reset">Reiniciar</button>
+          </footer>
+          <div class="hintbar" style="margin-top:10px">Consejo: añade más escenas en <span style="color:#c7d2fe">scenes</span> y el juego crecerá como un capítulo nuevo.</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+// ------------------ Utilidades ------------------
+const $ = (id) => document.getElementById(id);
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+const roll20 = () => Math.floor(Math.random()*20)+1;
+
+// ------------------ Estado ------------------
+const state = {
+  pv:20, def:13, luc:6, tem:2, rn:1,
+  marks:{tinta:1,sal:1,sombra:0,ceniza:1},
+  inv:["Resguardo: Por Lucía","Etiqueta blanca","Sal","Mecha"],
+  letters:0,
+  scene:"vestibulo",
+  log:[]
+};
+
+// ------------------ Escenas (MVP) ------------------
+const scenes = {
+  vestibulo:{
+    title:"Vestíbulo (09)",
+    text:`La mesa del registro sigue abierta. Donde antes estuvo tu nombre, ahora hay una frase limpia y fría:\n\nSUJETO EN TRÁNSITO — UBICACIÓN VARIABLE.\n\nUn vecino te mira, te reconoce… y no puede terminar la palabra.\n\n—Hoy no me constas —dice, avergonzado.\n\nBaja la voz: —Si buscas a ella… prueba la Capilla.`,
+    choices:[
+      {label:"Ir a la Capilla (12)", hint:"Memoria fija", next:"capilla"},
+      {label:"Bajar a Cocina/Despensa (17/16)", hint:"Recursos y duendes", next:"cocina"}
+    ]
+  },
+  cocina:{
+    title:"Cocina (17)",
+    text:`Tres duendes de verdín salen de una grieta. Uno te pega una etiqueta con cuidado profesional: PENDIENTE.\n\nNo atacan. Clasifican.`,
+    choices:[
+      {label:"Negociar con una verdad mínima", hint:"Temple d20", roll:{stat:"tem",dc:13, ok:"Te reclasifican a EN TRÁNSITO y dejan una Etiqueta blanca.", bad:"Añaden PENDIENTE (−1 a la próxima tirada)."}, next:"despensa"},
+      {label:"Arrancar la etiqueta", hint:"ATQ d20", roll:{stat:"atk",dc:13, ok:"Consigues Hilo de Verdín.", bad:"La etiqueta queda EXTRAV— (Lucidez −1)."}, next:"despensa"}
+    ]
+  },
+  despensa:{
+    title:"Despensa (16)",
+    text:`La sal aquí no conserva: contiene. Dos ratas de cera prueban el borde del recipiente.`,
+    choices:[
+      {label:"Tomar Sal y sellar", hint:"Temple d20", roll:{stat:"tem",dc:13, ok:"Ganas Sal y bloqueas reescrituras 3 salas.", bad:"Lucidez −1, pero aprendes (Sal +1)."}, next:"capilla"},
+      {label:"Evitar el lugar", hint:"Pragmático", next:"capilla"}
+    ]
+  },
+  capilla:{
+    title:"Capilla (12)",
+    text:`En el registro, Lucía aparece tachada. Una obsidiana lisa refleja con retraso.\n\nSientes el golpe… y resistes.`,
+    choices:[
+      {label:"Buscar Letras entre páginas", hint:"Lucidez d20", roll:{stat:"luc",dc:13, ok:"Obtienes Letra (1).", bad:"Te mareas (Lucidez −1)."}, action:"gainLetter", next:"torre"},
+      {label:"Salir hacia la Torre del Hilo (13)", hint:"Vista del tablero", next:"torre"}
+    ]
+  },
+  torre:{
+    title:"Torre del Hilo (13)",
+    text:`Desde arriba el castillo es un texto. En un espejo negro ves la marca de cuerda.\n\nRecuperas una letra más.`,
+    choices:[
+      {label:"Tomar otra Letra (1)", hint:"Preparar recomposición", action:"gainLetter", next:"puerta"},
+      {label:"Recomponer referencia (usar 3 Letras)", hint:"RN +1 por 3 salas", action:"recompose", next:"puerta"},
+      {label:"Bajar hacia la Puerta de Obsidiana (22)", hint:"Tentación", next:"puerta"}
+    ]
+  },
+  puerta:{
+    title:"Puerta de Obsidiana (22)",
+    text:`La obsidiana devuelve. Aparece un menú limpio:\n\nCORRECCIÓN DISPONIBLE.\n\n1) RN +2 (Lucía constará menos)\n2) Repetir escena (mapa inestable)\n3) Paso administrado (la puerta te sigue).`,
+    choices:[
+      {label:"Rechazar", hint:"Resistir", action:"reject", next:"final"},
+      {label:"Leer letra pequeña", hint:"Lucidez d20", roll:{stat:"luc",dc:16, ok:"Detectas el truco y ganas Tinta.", bad:"Aceptas algo sin notarlo."}, action:"gainTinta", next:"final"}
+    ]
+  },
+  final:{
+    title:"Umbral del Eco (23)",
+    text:`El Eco imita tu voz. Muestras el Resguardo. Titubea.\n\nREFERENCIA: ACEPTADA (PARCIAL).\n\nFin del prototipo.`,
+    choices:[
+      {label:"Reiniciar", hint:"Nueva run", action:"reset", next:"vestibulo"}
+    ]
+  }
+};
+
+// ------------------ Log y tiradas ------------------
+function addLog(msg){
+  state.log.unshift(msg);
+  renderLog();
+}
+
+function applyRoll(def){
+  const r = roll20();
+  const stat = def.stat === "atk" ? 3 : state[def.stat];
+  const ok = (r + stat) >= def.dc;
+  addLog(`Tirada d20(${r}) + ${def.stat}(${stat}) ${ok ? "✓" : "✗"}`);
+  addLog(ok ? def.ok : def.bad);
+  return { ok, r, total: r + stat };
+}
+
+// ------------------ Render ------------------
+function render(){
+  const s = scenes[state.scene];
+  $("sceneTitle").textContent = s.title;
+  $("sceneText").textContent = s.text;
+
+  const ch = $("choices");
+  ch.innerHTML = "";
+
+  s.choices.forEach((c) => {
+    const b = document.createElement("button");
+    b.innerHTML = `${c.label}<small>${c.hint || ""}</small>`;
+    b.onclick = () => {
+      if (c.roll) applyRoll(c.roll);
+
+      if (c.action === "gainLetter") {
+        state.letters = clamp(state.letters + 1, 0, 99);
+        addLog(`Recuperas una Letra. Letras: ${state.letters}.`);
+      }
+
+      if (c.action === "recompose") {
+        if (state.letters < 3) {
+          addLog("No tienes 3 Letras todavía.");
+        } else {
+          state.letters -= 3;
+          state.rn = clamp(state.rn + 1, 0, 3);
+          state.luc = clamp(state.luc - 1, 0, 10);
+          addLog("Recompones referencia (RN +1, Lucidez −1)." );
+        }
+      }
+
+      if (c.action === "gainTinta") {
+        state.marks.tinta = clamp(state.marks.tinta + 1, 0, 3);
+        addLog("Marca: Tinta +1.");
+      }
+
+      if (c.action === "reject") {
+        addLog("Resistes la tentación.");
+      }
+
+      if (c.action === "reset") {
+        reset();
+        return;
+      }
+
+      state.scene = c.next;
+      render();
+    };
+    ch.appendChild(b);
+  });
+
+  renderStats();
+  renderInv();
+  renderLog();
+}
+
+function renderStats(){
+  $("pv").textContent = `${state.pv}`;
+  $("def").textContent = `${state.def}`;
+  $("luc").textContent = `${state.luc}`;
+  $("tem").textContent = `${state.tem}`;
+  $("rn").textContent = `${state.rn}`;
+  $("marks").textContent = Object.entries(state.marks).map(([k,v])=>`${k}:${v}`).join(" · ") + ` · letras:${state.letters}`;
+}
+
+function renderInv(){
+  const inv = $("inv");
+  inv.innerHTML = "";
+  state.inv.forEach((i) => {
+    const d = document.createElement("div");
+    d.className = "tag";
+    d.textContent = i;
+    inv.appendChild(d);
+  });
+}
+
+function renderLog(){
+  $("log").textContent = state.log.slice(0, 30).map((x) => `• ${x}`).join("\n");
+}
+
+// ------------------ Guardar/Cargar ------------------
+$("save").onclick = () => {
+  localStorage.setItem("obsidiana_save", JSON.stringify(state));
+  addLog("Guardado.");
+};
+
+$("load").onclick = () => {
+  const s = localStorage.getItem("obsidiana_save");
+  if (!s) return addLog("No hay guardado.");
+  Object.assign(state, JSON.parse(s));
+  addLog("Cargado.");
+  render();
+};
+
+$("reset").onclick = reset;
+
+function reset(){
+  localStorage.removeItem("obsidiana_save");
+  location.reload();
+}
+
+// ------------------ PWA: instalar + service worker ------------------
+let deferredPrompt = null;
+const installBtn = $("installBtn");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.classList.add("show");
+});
+
+installBtn.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.classList.remove("show");
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {
+      // Si falla, el juego sigue funcionando online.
+    });
+  });
+}
+
+// Arranque
+render();
+</script>
+</body>
+</html>
